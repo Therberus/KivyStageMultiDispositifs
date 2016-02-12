@@ -3,14 +3,18 @@ __version__ = '1.0'
 from kivy.app import App
 from kivy.uix.widget import Widget
 from kivy.properties import ListProperty, ObjectProperty, NumericProperty,StringProperty
+
+import random
 import pyjsonrpc
 import threading
 import demjson as json
 
+TableURL = "http://localhost:8080"
+
 class Tablette(Widget):
     
     http_client = pyjsonrpc.HttpClient(
-        url = "http://localhost:8080"
+        url = TableURL
     )
     TrueColor = ListProperty([0,0,0])
     Status = StringProperty("Disconnected")
@@ -28,6 +32,9 @@ class Tablette(Widget):
     def setColor(self, color):
         self.TrueColor = color
 
+    def finish(self):
+        self.http_client.goodbye()
+
 class TabletteclientApp(App):
     tablette = None
 
@@ -36,12 +43,22 @@ class TabletteclientApp(App):
         self.tablette.appairage()
         return self.tablette
 
-class RequestHandler(pyjsonrpc.HttpRequestHandler):
+    def on_start(self):
+        http_server = pyjsonrpc.ThreadingHttpServer(
+                server_address = ('localhost'.__str__(), 8080),
+                RequestHandlerClass = RequestHandler
+        )
+        http_server.RequestHandlerClass.app = self
+        t1 = threading.Thread(target=http_server.serve_forever)
+        t1.daemon = True
+        t1.start()
 
-    app = TabletteclientApp()
-    t1 = threading.Thread(target=app.run)
-    t1.daemon = True
-    t1.start()
+    def on_stop(self):
+        print('Closing')
+        self.tablette.finish()
+
+class RequestHandler(pyjsonrpc.HttpRequestHandler):
+    app = None
 
     @pyjsonrpc.rpcmethod
     def ping(self):
@@ -50,14 +67,8 @@ class RequestHandler(pyjsonrpc.HttpRequestHandler):
 
     @pyjsonrpc.rpcmethod
     def colorUpdate(self, color):
+        print("ColorUpdate")
         self.app.tablette.setColor(color)
 
 if __name__ == '__main__':
-    http_server = pyjsonrpc.ThreadingHttpServer(
-            server_address = ('127.0.0.2', 8080),
-            RequestHandlerClass = RequestHandler
-    )
-    #print "Starting HTTP server ..."
-    #print "URL: http://10.42.0.1:8080"
-    http_server.serve_forever()
-
+    TabletteclientApp().run()

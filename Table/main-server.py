@@ -8,7 +8,9 @@ from kivy.properties import ListProperty, ObjectProperty, NumericProperty,String
 import pyjsonrpc
 import threading
 import random
-    
+
+IPTable = "10.42.0.1"
+
 def randomColor():
     return [random.random(), random.random(), random.random()]
 
@@ -37,8 +39,9 @@ class Joueur(Widget):
 
 
 class TabletteApp(App):
-    
-    IpTable = "10.42.0.1"
+    server = None
+
+    IpTable = IPTable
     PortTable = "8080"
     tablette = ObjectProperty(None)
     nbClient = NumericProperty(0)
@@ -54,7 +57,7 @@ class TabletteApp(App):
 
                 joueur = Joueur()
                 joueur.TrueColor = randomColor()
-                joueur.Adresse = "127.0.0.2"
+                joueur.Adresse = ip
                 joueur.Port = port
                 joueur.ID = self.nbClient
                 joueur.createHttpClient()
@@ -66,19 +69,37 @@ class TabletteApp(App):
                 return '{"status":"Refused","message":"too many clients"}'
         else: 
             return '{"status":"Connected","message":"alredy connected"}'
-        
+
+    def on_stop(self):
+        self.server.shutdown()
+
+    def removeJoueur(self, clientAddress):
+        for child in self.tablette.children:
+            if child.Adresse == clientAddress:
+                self.tablette.remove_widget(child)
+                self.nbClient -= 1
         
 class RequestHandler(pyjsonrpc.HttpRequestHandler):
-    
+
     app = TabletteApp()
     t1 = threading.Thread(target=app.run)
     t1.daemon = True
     t1.start()
-    
+
     @pyjsonrpc.rpcmethod
     def appairage(self,port,status):
         message = self.app.appairage(self.client_address[0], port, status)
+        if self.app.server is None:
+            self.app.server = self.server
         return message
+
+    @pyjsonrpc.rpcmethod
+    def goodbye(self):
+        print 'Removing player at : ' + self.client_address[0]
+        self.app.removeJoueur(self.client_address[0])
+
+    def informApp(self, server):
+        self.app.server = server
         
 if __name__ == '__main__':
     http_server = pyjsonrpc.ThreadingHttpServer(
@@ -87,5 +108,7 @@ if __name__ == '__main__':
     )
     #print "Starting HTTP server ..."
     #print "URL: http://10.42.0.1:8080"
+    #http_server.RequestHandlerClass.informApp(http_server)
+
     http_server.serve_forever()
         
