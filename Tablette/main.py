@@ -8,8 +8,9 @@ import random
 import pyjsonrpc
 import threading
 import demjson as json
+import socket
 
-TableURL = "http://localhost:8080"
+TableURL = "http://10.42.0.1:8080"
 
 class Tablette(Widget):
     
@@ -19,8 +20,8 @@ class Tablette(Widget):
     TrueColor = ListProperty([0,0,0])
     Status = StringProperty("Disconnected")
     
-    def appairage(self):
-        reponse = self.http_client.call("appairage","8080",self.Status)
+    def appairage(self, adresse):
+        reponse = self.http_client.appairage(adresse)
         reponse_tab = json.decode(reponse)
         self.Status = reponse_tab["status"]
         if self.Status=="Connected":
@@ -37,19 +38,25 @@ class Tablette(Widget):
 
 class TabletteclientApp(App):
     tablette = None
+    server = None
+    adresse = None
 
     def build(self):
         self.tablette = Tablette()
-        self.tablette.appairage()
+        self.tablette.appairage(self.adresse)
         return self.tablette
 
     def on_start(self):
-        http_server = pyjsonrpc.ThreadingHttpServer(
-                server_address = ('localhost'.__str__(), 8080),
+        hostName = socket.gethostname()
+        ip = socket.gethostbyname_ex(hostName)
+        self.adresse = ip[2][0]
+
+        self.server = pyjsonrpc.ThreadingHttpServer(
+                server_address = (self.adresse, 8080),
                 RequestHandlerClass = RequestHandler
         )
-        http_server.RequestHandlerClass.app = self
-        t1 = threading.Thread(target=http_server.serve_forever)
+        self.server.RequestHandlerClass.app = self
+        t1 = threading.Thread(target=self.server.serve_forever)
         t1.daemon = True
         t1.start()
 
