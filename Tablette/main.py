@@ -21,7 +21,7 @@ class Tablette(Widget):
     Status = StringProperty("Disconnected")
     
     def appairage(self, adresse):
-        reponse = self.http_client.appairage(adresse)
+        reponse = self.http_client.appairage(adresse, self.Status)
         reponse_tab = json.decode(reponse)
         self.Status = reponse_tab["status"]
         if self.Status=="Connected":
@@ -43,14 +43,13 @@ class TabletteclientApp(App):
 
     def build(self):
         self.tablette = Tablette()
+        hostName = socket.gethostname()
+        ip = socket.gethostbyname_ex(hostName)
+        self.adresse = ip[2][0]
         self.tablette.appairage(self.adresse)
         return self.tablette
 
     def on_start(self):
-        hostName = socket.gethostname()
-        ip = socket.gethostbyname_ex(hostName)
-        self.adresse = ip[2][0]
-
         self.server = pyjsonrpc.ThreadingHttpServer(
                 server_address = (self.adresse, 8080),
                 RequestHandlerClass = RequestHandler
